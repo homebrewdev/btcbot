@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+# файл ресурсов для строк - сообщений бота для пользователя
+# PROJECT: @HBCryptoBot
+# DESCRIPTION: my new telegram bot for request of crypto rates from api.exmo.com
+# AUTHOR: Egor Devyatov
+#
 # файл ресурсов для строк - сообщений бота для пользователя
 
 msg_help = \

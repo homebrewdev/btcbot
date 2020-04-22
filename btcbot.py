@@ -1,4 +1,8 @@
-# coding: utf-8
+# -*- coding: utf-8 -*-
+# PROJECT: @HBCryptoBot
+# DESCRIPTION: my new telegram bot for request of crypto rates from api.exmo.com
+# AUTHOR: Egor Devyatov
+# DATE: 22-Apr-2020
 
 import requests
 from datetime import datetime
