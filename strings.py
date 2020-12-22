@@ -12,3 +12,6 @@ msg_help = \
 btn_get_rate = 'Узнать курс криптовалют'
 btn_ETH = 'Курс ETH'
 btn_ZEC = 'Курс ZEC'
+btn_USD_rate = 'Курс доллара ЦБР'
+
+msg_my_site = "Посетить сайт разработчика бота"

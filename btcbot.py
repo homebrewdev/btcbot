@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
 # PROJECT: @HBCryptoBot
 # DESCRIPTION: my new telegram bot for request of crypto rates from api.exmo.com
+# and daily usd rates from 'https://www.cbr-xml-daily.ru/daily_json.js'
 # AUTHOR: Egor Devyatov
-# DATE: 22-Apr-2020
+# DATE: 22-Dec-2020
 
 import requests
 from datetime import datetime
@@ -12,6 +12,7 @@ from telebot import types
 import config
 import strings
 import time
+import logging
 
 # берем из конфига токен бота
 bot = telebot.TeleBot(config.token)
@@ -38,18 +39,28 @@ class CryptoData(object):
         self.zec_rub = zec_rub
 
     def request_prices(self):
-        # запрос к api.exmo.com
-        response = requests.request("GET", config.API_URL)
+        try:
+            # запрос к api.exmo.com
+            response = requests.request("GET", config.API_URL)
+            decoded_json = json.loads(response.text)
+            # распарсим json
+            self.btc_usd = decoded_json["BTC_USD"]["sell_price"]
+            self.btc_rub = decoded_json["BTC_RUB"]["sell_price"]
+            self.eth_usd = decoded_json["ETH_USD"]["sell_price"]
+            self.eth_rub = decoded_json["ETH_RUB"]["sell_price"]
+            self.zec_usd = decoded_json["ZEC_USD"]["sell_price"]
+            self.zec_rub = decoded_json["ZEC_RUB"]["sell_price"]
+            return 1
 
-        decoded_json = json.loads(response.text)
-        # распарсим json
-        self.btc_usd = decoded_json["BTC_USD"]["sell_price"]
-        self.btc_rub = decoded_json["BTC_RUB"]["sell_price"]
-        self.eth_usd = decoded_json["ETH_USD"]["sell_price"]
-        self.eth_rub = decoded_json["ETH_RUB"]["sell_price"]
-        self.zec_usd = decoded_json["ZEC_USD"]["sell_price"]
-        self.zec_rub = decoded_json["ZEC_RUB"]["sell_price"]
-        return 0
+        except requests.exceptions.HTTPError as req_error:
+            logging.error("http Error: %s %s" % (config.API_URL, req_error))
+            return 0
+        except requests.exceptions.ConnectionError as req_error:
+            logging.error("Error Connecting: %s %s" % (config.API_URL, req_error))
+            return 0
+        except requests.exceptions.RequestException as req_error:
+            logging.error("Unrecognised error %s %s" % (config.API_URL, req_error))
+            return 0
 
     def get_prices(self):
         prices_string = \
@@ -72,6 +83,36 @@ def send_prices_to_user(message):
     bot.send_message(message.chat.id, "Текущий курс криптовалют биржи EXMO.COM дату:\n{}.{}.{}".format(day, month, year))
     bot.send_message(message.chat.id, crypto.get_prices())
 
+# посылаем курс доллара пользователю в чат
+def send_usd_rate_to_user(message):
+    # отправляем пользователю сообщение с курсами 3 криптовалют
+    time_marker = datetime.timetuple(datetime.now())
+    year = str(time_marker.tm_year)
+    month = str(time_marker.tm_mon)
+    day = str(time_marker.tm_mday)
+    bot.send_message(message.chat.id,
+                     "Текущий курс доллара ЦБР на дату:\n{}.{}.{}".format(day, month, year))
+    bot.send_message(message.chat.id, getUSDrate())
+
+# запрос курса доллара с сайта ЦБР
+def getUSDrate():
+    try:
+        logging.info("Запрос курса доллара с сайта ЦБР")
+        response = requests.request("GET", config.API_URL_USD)
+        response.raise_for_status()
+        decoded_json = json.loads(response.text)
+        USDrate = decoded_json["Valute"]['USD']['Value']
+        return "{} рублей".format(USDrate)
+    except requests.exceptions.HTTPError as req_error:
+        logging.error("http Error: {} {}".format(config.API_URL_USD, req_error))
+        return "нет данных"
+    except requests.exceptions.ConnectionError as req_error:
+        logging.error("Error Connecting: {} {}".format(config.API_URL_USD, req_error))
+        return "нет данных"
+    except requests.exceptions.RequestException as req_error:
+        logging.error("unrecognised error: {} {}".format(config.API_URL_USD, req_error))
+        return "нет данных"
+
 
 # обработчик при старте команды - /start
 @bot.message_handler(commands=["start"])
@@ -88,6 +129,15 @@ def rate(message):
     send_prices_to_user(message) # отсылаем месседж с ценами
     time.sleep(5)
     start_dlg(message)
+
+
+# обработчик при старте команды - /rateUSD - узнать курс доллара
+@bot.message_handler(commands=["rateusd"])
+def rateUSD(message):
+        # отсылаем месседж с курсом бакса
+        send_usd_rate_to_user(message)
+        time.sleep(5)
+        start_dlg(message)
 
 
 # обработчик при старте команды - /help - послать пользователю help
@@ -108,10 +158,11 @@ def any_msg(message):
 def start_dlg(message):
     # Создаем клавиатуру и каждую из кнопок
     keyboard = types.InlineKeyboardMarkup(row_width=1)
-    callback_button = types.InlineKeyboardButton(text=strings.btn_get_rate, callback_data="rate")
-    url_button = types.InlineKeyboardButton(text="Посетите сайт разработчика бота", url=config.my_site_URL)
-    # размещаем кнопки
-    keyboard.add(callback_button, url_button)
+    callback_btn = types.InlineKeyboardButton(text=strings.btn_get_rate, callback_data="rate")
+    callback_usd_btn = types.InlineKeyboardButton(text=strings.btn_USD_rate, callback_data="usd_rate")
+    url_btn= types.InlineKeyboardButton(text=strings.msg_my_site, url=config.my_site_URL)
+    # размещаем кнопки курса криптовалют, курса доллара и кнопки - посетить сайт разраба
+    keyboard.add(callback_btn, callback_usd_btn, url_btn)
     # основное сообщение в меню
     bot.send_message(message.chat.id, "Выбирай пункт меню для дальнейших действий:", reply_markup=keyboard)
 
@@ -123,8 +174,9 @@ def callback_inline(call):
 
     # Если сообщение из чата с ботом
     if call.message:
-        # Если нажата inline-кнопка "Заказ"
+        # Если нажата inline-кнопка 'Узнать курс криптовалют'
         if call.data == "rate":
+            logging.info("Нажата кнопка 'Узнать курс криптовалют'")
             # запрос по API
             crypto.request_prices()
             # показываем pop up окно с инфой show_alert=True
@@ -134,6 +186,14 @@ def callback_inline(call):
             time.sleep(5)
             start_dlg(call.message)
 
+        if call.data == "usd_rate":
+            logging.info("Нажата кнопка 'Курс доллара'")
+            # показываем pop up окно с инфой show_alert=True
+            bot.answer_callback_query(callback_query_id=call.id, show_alert=True,
+                                      text="Курс доллара на сегодня: {}".format(getUSDrate()))
+            send_usd_rate_to_user(call.message)
+            time.sleep(5)
+            start_dlg(call.message)
 
 # обработчик действий после нажатия юзером на кнопку - Узнать курс криптовалют
 def category1(message):
@@ -143,6 +203,10 @@ def category1(message):
 
 # самое основное тут )
 if __name__ == '__main__':
+    # настройка логирования
+    logging.basicConfig(filename='btcbot {}.log'.format(datetime.now()), filemode='w',
+                        format='%(name)s - %(levelname)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S', level=logging.INFO)
+    logging.info("Btcbot запущен!")
 # инициализируем объект через конструктор
     crypto = CryptoData(0, 0, 0, 0, 0, 0)
 # делаем так чтобы наш бот не падал когда сервер api.telegram.org выкидывает нашего бота)
