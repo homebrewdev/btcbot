@@ -13,10 +13,12 @@
 # help - помощь по работе с ботом
 
 # токен полученный от BotFather (Telegram API) @HBCryptoBot
-token = 'token'
+token = 'bot_father_token'
 
 # ресурс источник курса биткоина в формате json
 API_URL = 'https://api.exmo.com/v1.1/ticker'
+
+API_URL_USD = 'https://www.cbr-xml-daily.ru/daily_json.js'
 
 # ссылка на мой сайт
 my_site_URL = 'https://github.com/homebrewdev'
